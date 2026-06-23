@@ -2403,6 +2403,9 @@ class RaaS3Manager:
                 server_args["rollout_manager_address"] = rollout_mgr_url
                 launch_env["ASTRAFLOW_AUTOPATCH"] = "true"
 
+            if backend == "sglang" and server_args.get("vortex_config") is not None:
+                launch_env["ASTRAFLOW_AUTOPATCH"] = "true"
+
             server_args["__launch_env__"] = launch_env
             launch_jobs.append((server_idx, server_devices, server_args))
 

@@ -368,6 +368,7 @@ class SGLangConfig:
     # but we disable it to avoid precision issues
     chunked_prefill_size: int | None = -1
     max_prefill_tokens: int = 32768
+    page_size: int | None = None
     schedule_policy: str = "lpm"
     schedule_conservativeness: float = 1.0
     cpu_offload_gb: int = 0
@@ -398,6 +399,8 @@ class SGLangConfig:
     # and passed as `model_loader_extra_config` to SGLang.
     enable_multithread_load: bool = False
     enable_fast_load: bool = False
+    # Vortex sparse-attention config. Serialized to SGLang's --vortex-config.
+    vortex: Any = None
 
     # Use staticmethod to make OmegaConf happy.
     @staticmethod
@@ -441,6 +444,13 @@ class SGLangConfig:
     ):
         # Map "all-linear" to "all"
         args: dict = conf_as_dict(sglang_config)
+        vortex_config = args.pop("vortex", None)
+        if vortex_config is not None:
+            args["vortex_config"] = (
+                vortex_config
+                if isinstance(vortex_config, str)
+                else json.dumps(vortex_config, separators=(",", ":"))
+            )
         if sglang_config.enable_multithread_load or sglang_config.enable_fast_load:
             if not pkg_version.is_version_equal("sglang", "0.5.2"):
                 raise RuntimeError(
