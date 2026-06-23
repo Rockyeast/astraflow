@@ -9,11 +9,21 @@ import modal
 APP_NAME = "astraflow-vortex-smoke"
 VORTEX_REF = os.environ.get("VORTEX_TORCH_REF", "v0.6")
 HF_CACHE_DIR = "/root/.cache/huggingface"
-GPU_TYPE = os.environ.get("VORTEX_MODAL_GPU", "L40S")
-FULL_CHAIN_GPU_TYPE = os.environ.get(
+
+
+def _modal_gpu_spec(value: str) -> str | list[str]:
+    name, sep, count = value.partition(":")
+    if sep and count.isdigit():
+        return [name] * int(count)
+    return value
+
+
+GPU_TYPE_RAW = os.environ.get("VORTEX_MODAL_GPU", "L40S")
+GPU_TYPE = _modal_gpu_spec(GPU_TYPE_RAW)
+FULL_CHAIN_GPU_TYPE = _modal_gpu_spec(os.environ.get(
     "VORTEX_MODAL_FULL_CHAIN_GPU",
-    GPU_TYPE if ":" in GPU_TYPE else f"{GPU_TYPE}:2",
-)
+    GPU_TYPE_RAW if ":" in GPU_TYPE_RAW else f"{GPU_TYPE_RAW}:2",
+))
 
 app = modal.App(APP_NAME)
 hf_cache = modal.Volume.from_name("vortex-hf-cache", create_if_missing=True)
