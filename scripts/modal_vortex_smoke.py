@@ -787,7 +787,7 @@ def dataflow_raas_trainer_smoke(
                     ],
                     "answer": [{answer_literal}] * n,
                     "source": ["smoke"] * n,
-                    "query_id": [f"smoke-{{i}}" for i in range(n)],
+                    "query_id": ["smoke-" + str(i) for i in range(n)],
                 }
                 return Dataset.from_dict(rows)
             """
