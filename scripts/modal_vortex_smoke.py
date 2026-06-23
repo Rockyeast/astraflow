@@ -772,9 +772,8 @@ def dataflow_raas_trainer_smoke(
     answer_literal = repr(dataset_answer)
 
     dataset_py = root / "smoke_dataset.py"
-    dataset_py.write_text(
-        textwrap.dedent(
-            f"""
+    dataset_source = textwrap.dedent(
+        """
             from datasets import Dataset
 
 
@@ -782,18 +781,19 @@ def dataflow_raas_trainer_smoke(
                 n = max_samples or 16
                 rows = {
                     "messages": [
-                        [{{"role": "user", "content": {prompt_literal}}}]
+                        [{"role": "user", "content": __PROMPT_LITERAL__}]
                         for _ in range(n)
                     ],
-                    "answer": [{answer_literal}] * n,
+                    "answer": [__ANSWER_LITERAL__] * n,
                     "source": ["smoke"] * n,
                     "query_id": ["smoke-" + str(i) for i in range(n)],
                 }
                 return Dataset.from_dict(rows)
             """
-        ),
-        encoding="utf-8",
     )
+    dataset_source = dataset_source.replace("__ANSWER_LITERAL__", answer_literal)
+    dataset_source = dataset_source.replace("__PROMPT_LITERAL__", prompt_literal)
+    dataset_py.write_text(dataset_source, encoding="utf-8")
 
     experiment_yaml = root / "experiment.yaml"
     variant = "vortex" if enable_vortex else "baseline"
