@@ -745,6 +745,10 @@ def dataflow_raas_trainer_smoke(
     model_path: str = "Qwen/Qwen3-0.6B",
     total_train_steps: int = 1,
     enable_vortex: bool = True,
+    raas_data_parallel_size: int = 1,
+    max_new_tokens: int = 8,
+    dataset_prompt: str = "What is 1+1? Put the final answer in \\boxed{}.",
+    dataset_answer: str = "\\boxed{2}",
 ) -> str:
     import json as _json
     import os
@@ -762,11 +766,15 @@ def dataflow_raas_trainer_smoke(
     root = Path("/tmp/astraflow_full_chain_smoke")
     root.mkdir(parents=True, exist_ok=True)
     sys.path.insert(0, str(root))
+    trainer_gpu_id = str(raas_data_parallel_size)
+    raas_visible_devices = ",".join(str(i) for i in range(raas_data_parallel_size))
+    prompt_literal = repr(dataset_prompt)
+    answer_literal = repr(dataset_answer)
 
     dataset_py = root / "smoke_dataset.py"
     dataset_py.write_text(
         textwrap.dedent(
-            """
+            f"""
             from datasets import Dataset
 
 
@@ -774,12 +782,12 @@ def dataflow_raas_trainer_smoke(
                 n = max_samples or 16
                 rows = {
                     "messages": [
-                        [{"role": "user", "content": "What is 1+1? Put the final answer in \\\\boxed{}."}]
+                        [{{"role": "user", "content": {prompt_literal}}}]
                         for _ in range(n)
                     ],
-                    "answer": ["\\\\boxed{2}"] * n,
+                    "answer": [{answer_literal}] * n,
                     "source": ["smoke"] * n,
-                    "query_id": [f"smoke-{i}" for i in range(n)],
+                    "query_id": [f"smoke-{{i}}" for i in range(n)],
                 }
                 return Dataset.from_dict(rows)
             """
@@ -810,7 +818,7 @@ def dataflow_raas_trainer_smoke(
                   gconfig:
                     n_samples: 1
                     temperature: 0.0
-                    max_new_tokens: 8
+                    max_new_tokens: {max_new_tokens}
                     min_new_tokens: 0
               delta_full_sync_interval: 0
 
@@ -930,7 +938,7 @@ def dataflow_raas_trainer_smoke(
             engine:
               model0:
                 backend: sglang
-                data_parallel_size: 1
+                data_parallel_size: {raas_data_parallel_size}
                 tensor_parallel_size: 1
 
             sglang:
@@ -1089,7 +1097,7 @@ def dataflow_raas_trainer_smoke(
                 "--trainer",
                 "trainer_model0",
             ],
-            {"CUDA_VISIBLE_DEVICES": "1"},
+            {"CUDA_VISIBLE_DEVICES": trainer_gpu_id},
         )
         try:
             trainer.wait(timeout=50 * 60)
@@ -1120,6 +1128,10 @@ def dataflow_raas_trainer_smoke(
                 "mode": "dataflow_raas_trainer_smoke",
                 "enable_vortex": enable_vortex,
                 "total_train_steps": total_train_steps,
+                "raas_data_parallel_size": raas_data_parallel_size,
+                "max_new_tokens": max_new_tokens,
+                "dataset_prompt": dataset_prompt,
+                "dataset_answer": dataset_answer,
                 "initial_dataflow_status": dataflow_status,
                 "initial_raas_status": raas_status,
                 "final_dataflow_status": final_dataflow_status,
