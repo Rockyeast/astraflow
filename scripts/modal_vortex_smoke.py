@@ -677,7 +677,7 @@ def dataflow_raas_batch_smoke(model_path: str = "Qwen/Qwen3-0.6B") -> str:
                 "--astraflow-url",
                 "http://127.0.0.1:8000",
             ],
-            {"CUDA_VISIBLE_DEVICES": "0"},
+            {"CUDA_VISIBLE_DEVICES": raas_visible_devices},
         )
 
         raas_status = wait_json("http://127.0.0.1:19190/status", "raas", timeout_s=25 * 60)
@@ -1072,7 +1072,7 @@ def dataflow_raas_trainer_smoke(
                 "--astraflow-url",
                 "http://127.0.0.1:8000",
             ],
-            {"CUDA_VISIBLE_DEVICES": "0"},
+            {"CUDA_VISIBLE_DEVICES": raas_visible_devices},
         )
         raas_status = wait_json("http://127.0.0.1:19190/status", "raas", timeout_s=25 * 60)
 
