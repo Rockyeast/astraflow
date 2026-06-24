@@ -288,6 +288,197 @@ def server_smoke(model_path: str = "Qwen/Qwen3-0.6B") -> str:
 
 
 @app.function(
+    image=image,
+    gpu=GPU_TYPE,
+    volumes={HF_CACHE_DIR: hf_cache},
+    timeout=60 * 60,
+)
+def server_benchmark(
+    model_path: str = "Qwen/Qwen3-0.6B",
+    enable_vortex: bool = True,
+    max_new_tokens: int = 64,
+    prompt_repeat: int = 96,
+    warmup: int = 1,
+    trials: int = 5,
+) -> str:
+    import json as _json
+    import os
+    import signal
+    import statistics
+    import subprocess
+    import time
+    from collections import deque
+
+    import requests
+    import torch
+
+    host = "127.0.0.1"
+    port = 30000
+    base_url = f"http://{host}:{port}"
+    logs: deque[str] = deque(maxlen=260)
+
+    smi = subprocess.run(
+        [
+            "nvidia-smi",
+            "--query-gpu=name,driver_version,memory.total",
+            "--format=csv,noheader",
+        ],
+        text=True,
+        capture_output=True,
+        check=True,
+    )
+
+    launcher = (
+        "import os, sys\n"
+        "if os.environ.get('ENABLE_VORTEX') == '1':\n"
+        "    import vortex_torch\n"
+        "from sglang.launch_server import run_server\n"
+        "from sglang.srt.server_args import prepare_server_args\n"
+        "from sglang.srt.utils import kill_process_tree\n"
+        "server_args = prepare_server_args(sys.argv[1:])\n"
+        "try:\n"
+        "    run_server(server_args)\n"
+        "finally:\n"
+        "    kill_process_tree(os.getpid(), include_parent=False)\n"
+    )
+    cmd = [
+        "python",
+        "-c",
+        launcher,
+        "--model-path",
+        model_path,
+        "--page-size",
+        "16",
+        "--attention-backend",
+        "flashinfer",
+        "--disable-overlap-schedule",
+        "--disable-cuda-graph",
+        "--skip-server-warmup",
+        "--context-length",
+        "1024",
+        "--mem-fraction-static",
+        "0.65",
+        "--max-running-requests",
+        "4",
+        "--tp-size",
+        "1",
+        "--host",
+        host,
+        "--port",
+        str(port),
+    ]
+    if enable_vortex:
+        cmd.extend(["--vortex-config", _vortex_json()])
+
+    proc = subprocess.Popen(
+        cmd,
+        env={**os.environ, "ENABLE_VORTEX": "1" if enable_vortex else "0"},
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
+        bufsize=1,
+        preexec_fn=os.setsid,
+    )
+
+    def drain_logs() -> None:
+        assert proc.stdout is not None
+        for line in proc.stdout:
+            logs.append(line.rstrip())
+
+    import threading
+
+    thread = threading.Thread(target=drain_logs, daemon=True)
+    thread.start()
+
+    prompt = (
+        "You are doing a deterministic latency test. "
+        "Repeat concise reasoning and end with the word done. "
+    ) * prompt_repeat
+    payload = {
+        "text": prompt,
+        "sampling_params": {
+            "temperature": 0,
+            "max_new_tokens": max_new_tokens,
+        },
+        "stream": False,
+    }
+
+    try:
+        ready = False
+        deadline = time.time() + 20 * 60
+        last_error = ""
+        while time.time() < deadline:
+            if proc.poll() is not None:
+                raise RuntimeError(
+                    "SGLang server exited before becoming healthy.\n"
+                    + "\n".join(logs)
+                )
+            try:
+                health = requests.get(f"{base_url}/health", timeout=5)
+                if health.status_code == 200:
+                    ready = True
+                    break
+                last_error = f"health status={health.status_code} body={health.text[:200]}"
+            except Exception as exc:  # noqa: BLE001
+                last_error = repr(exc)
+            time.sleep(5)
+
+        if not ready:
+            raise TimeoutError(
+                f"SGLang server did not become healthy: {last_error}\n"
+                + "\n".join(logs)
+            )
+
+        for _ in range(warmup):
+            response = requests.post(f"{base_url}/generate", json=payload, timeout=180)
+            response.raise_for_status()
+
+        latencies = []
+        response_shapes = []
+        for _ in range(trials):
+            start = time.perf_counter()
+            response = requests.post(f"{base_url}/generate", json=payload, timeout=180)
+            response.raise_for_status()
+            elapsed = time.perf_counter() - start
+            body = response.json()
+            latencies.append(elapsed)
+            response_shapes.append(
+                {
+                    "keys": sorted(body.keys()) if isinstance(body, dict) else type(body).__name__,
+                    "text_chars": len(str(body.get("text", ""))) if isinstance(body, dict) else None,
+                }
+            )
+
+        result = {
+            "model_path": model_path,
+            "enable_vortex": enable_vortex,
+            "gpu": smi.stdout.strip(),
+            "cuda_available": torch.cuda.is_available(),
+            "device": torch.cuda.get_device_name(0) if torch.cuda.is_available() else None,
+            "prompt_chars": len(prompt),
+            "max_new_tokens": max_new_tokens,
+            "warmup": warmup,
+            "trials": trials,
+            "latencies_s": latencies,
+            "mean_latency_s": statistics.fmean(latencies),
+            "median_latency_s": statistics.median(latencies),
+            "response_shapes": response_shapes,
+            "vortex_config": _json.loads(_vortex_json()) if enable_vortex else None,
+            "command": cmd,
+            "log_tail": list(logs)[-100:],
+        }
+        return _json.dumps(result, indent=2, sort_keys=True)
+    finally:
+        if proc.poll() is None:
+            os.killpg(os.getpgid(proc.pid), signal.SIGTERM)
+            try:
+                proc.wait(timeout=30)
+            except subprocess.TimeoutExpired:
+                os.killpg(os.getpgid(proc.pid), signal.SIGKILL)
+                proc.wait(timeout=30)
+
+
+@app.function(
     image=astraflow_image,
     gpu=GPU_TYPE,
     volumes={HF_CACHE_DIR: hf_cache},
