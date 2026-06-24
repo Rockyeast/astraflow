@@ -297,7 +297,7 @@ def server_benchmark(
     model_path: str = "Qwen/Qwen3-0.6B",
     enable_vortex: bool = True,
     max_new_tokens: int = 64,
-    prompt_repeat: int = 96,
+    prompt_repeat: int = 16,
     warmup: int = 1,
     trials: int = 5,
 ) -> str:
@@ -431,6 +431,8 @@ def server_benchmark(
 
         for _ in range(warmup):
             response = requests.post(f"{base_url}/generate", json=payload, timeout=180)
+            if response.status_code >= 400:
+                raise RuntimeError(f"warmup generate failed: {response.status_code} {response.text}")
             response.raise_for_status()
 
         latencies = []
@@ -438,6 +440,8 @@ def server_benchmark(
         for _ in range(trials):
             start = time.perf_counter()
             response = requests.post(f"{base_url}/generate", json=payload, timeout=180)
+            if response.status_code >= 400:
+                raise RuntimeError(f"benchmark generate failed: {response.status_code} {response.text}")
             response.raise_for_status()
             elapsed = time.perf_counter() - start
             body = response.json()
