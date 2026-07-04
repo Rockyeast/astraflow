@@ -33,6 +33,12 @@ def _norm_fallback_for_non_hopper():
 # Must run before sglang/flashinfer import (apply_patches may import sglang).
 _norm_fallback_for_non_hopper()
 
+try:
+    import vortex_torch  # noqa: F401  # installs the SGLang ServerArgs adapter
+except ModuleNotFoundError as e:
+    if e.name != "vortex_torch":
+        raise
+
 from astraflow.raas.patch import apply_patches
 
 # Apply patches at module level so they also run in spawned child processes.
