@@ -34,18 +34,48 @@ echo "Steps           : 1"
 echo "Logs            : ${LOG_DIR}"
 echo "============================"
 
-trap astraflow_cleanup_trap EXIT INT TERM
-astraflow_kill_stale
+for port in \
+  "${ASTRAFLOW_PORT}" \
+  "${RAAS_PORT}" \
+  "${WEIGHT_TRANSFER_HTTP_PORT_MODEL0}" \
+  "${MASTER_PORT_MODEL0:-29541}"; do
+  if lsof -i :"${port}" >/dev/null 2>&1; then
+    echo "Port ${port} is already in use; refusing to disturb another run." >&2
+    exit 1
+  fi
+done
 
-CUDA_VISIBLE_DEVICES="" \
+ASTRAFLOW_PID=""
+RAAS_PID=""
+TRAINER_PID=""
+
+cleanup() {
+  trap - EXIT INT TERM
+  for pid in "${TRAINER_PID}" "${RAAS_PID}" "${ASTRAFLOW_PID}"; do
+    if [[ -n "${pid}" ]]; then
+      kill -TERM -- "-${pid}" 2>/dev/null || true
+    fi
+  done
+  sleep 2
+  for pid in "${TRAINER_PID}" "${RAAS_PID}" "${ASTRAFLOW_PID}"; do
+    if [[ -n "${pid}" ]]; then
+      kill -KILL -- "-${pid}" 2>/dev/null || true
+    fi
+  done
+  wait 2>/dev/null || true
+}
+trap cleanup EXIT INT TERM
+
+setsid env CUDA_VISIBLE_DEVICES="" \
   python3 -u -m astraflow \
     --config "${EXPERIMENT_CONFIG}" \
     --port "${ASTRAFLOW_PORT}" \
     --host "${ASTRAFLOW_HOST}" \
-    2>&1 | tee "${LOG_DIR}/astraflow.log" &
+    > >(tee "${LOG_DIR}/astraflow.log") 2>&1 &
+ASTRAFLOW_PID=$!
 sleep 5
 
-CUDA_VISIBLE_DEVICES="${SERVICE_CUDA_VISIBLE_DEVICES}" \
+setsid env CUDA_VISIBLE_DEVICES="${SERVICE_CUDA_VISIBLE_DEVICES}" \
   python3 -u -m astraflow.raas.server \
     --host "${RAAS_HOST}" \
     --port "${RAAS_PORT}" \
@@ -53,11 +83,13 @@ CUDA_VISIBLE_DEVICES="${SERVICE_CUDA_VISIBLE_DEVICES}" \
     --config "${RAAS_CONFIG}" \
     --engine-id "${ENGINE_ID:-default}" \
     --astraflow-url "${ASTRAFLOW_URL}" \
-    2>&1 | tee "${LOG_DIR}/raas.log" &
+    > >(tee "${LOG_DIR}/raas.log") 2>&1 &
+RAAS_PID=$!
 sleep 15
 
-CUDA_VISIBLE_DEVICES="${TRAINER_MODEL0_GPUS}" \
-WEIGHT_TRANSFER_HTTP_PORT="${WEIGHT_TRANSFER_HTTP_PORT_MODEL0}" \
+setsid env \
+  CUDA_VISIBLE_DEVICES="${TRAINER_MODEL0_GPUS}" \
+  WEIGHT_TRANSFER_HTTP_PORT="${WEIGHT_TRANSFER_HTTP_PORT_MODEL0}" \
   torchrun --nnodes 1 --nproc-per-node "${TRAINER0_NPROC}" \
     --master-addr "${MASTER_ADDR:-127.0.0.1}" \
     --master-port "${MASTER_PORT_MODEL0:-29541}" \
@@ -65,5 +97,7 @@ WEIGHT_TRANSFER_HTTP_PORT="${WEIGHT_TRANSFER_HTTP_PORT_MODEL0}" \
     --config "${EXPERIMENT_CONFIG}" \
     --trainer trainer_model0 \
     "$@" \
-    2>&1 | tee "${LOG_DIR}/trainer_model0.log"
+    > >(tee "${LOG_DIR}/trainer_model0.log") 2>&1 &
+TRAINER_PID=$!
 
+wait "${TRAINER_PID}"
