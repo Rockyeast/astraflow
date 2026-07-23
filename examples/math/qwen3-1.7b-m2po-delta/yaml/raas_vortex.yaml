@@ -26,6 +26,7 @@ engine:
 sglang:
   context_length: 16384
   page_size: 16
+  attention_backend: flashinfer
   mem_fraction_static: 0.8
   max_running_requests: null
   skip_tokenizer_init: true

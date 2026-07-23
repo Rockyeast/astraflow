@@ -73,4 +73,5 @@ def test_example_raas_vortex_yaml_loads():
     assert vortex["topk_val"] == 30
     assert vortex["block_size"] == 16
     assert config["models"]["model0"]["sglang"]["page_size"] == 16
+    assert config["models"]["model0"]["sglang"]["attention_backend"] == "flashinfer"
     assert config["models"]["model0"]["sglang"]["model_path"] == "Qwen/Qwen3-1.7B"

@@ -1510,6 +1510,14 @@ def shutdown():
     print("[AstraFlow] Shutdown requested — terminating process.", flush=True)
     print("=" * 60, flush=True)
 
+    # Stop the producer/collector threads before tearing down RaaS. Otherwise
+    # they keep submitting and pulling while the inference engines disappear,
+    # which turns a normal shutdown into a burst of failed rollout tasks.
+    try:
+        service.stop_all()
+    except Exception:
+        logger.exception("Failed to stop data acquisition; proceeding to RaaS shutdown")
+
     # Tell every registered RaaS to stop. Local engines die with our
     # parent shell's cleanup trap, but remote engines on other nodes
     # only learn of shutdown via this broadcast. Bounded timeout so we

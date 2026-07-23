@@ -1,6 +1,8 @@
+import ast
 import json
 import sys
 import types
+from pathlib import Path
 
 ray = types.ModuleType("ray")
 ray.remote = lambda obj=None, **_kwargs: obj if obj is not None else (lambda x: x)
@@ -87,3 +89,32 @@ def test_sglang_config_preserves_vortex_json_string(monkeypatch):
     )
 
     assert args["vortex_config"] == vortex_json
+
+
+def test_entrypoint_loads_plugins_before_parsing_server_args():
+    """Keep AstraFlow's custom launcher aligned with SGLang's CLI entrypoint."""
+    entrypoint_path = Path(__file__).resolve().parents[2] / "entrypoint.py"
+    tree = ast.parse(entrypoint_path.read_text())
+
+    calls = [
+        node
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Call) and isinstance(node.func, ast.Name)
+    ]
+    load_calls = [node for node in calls if node.func.id == "load_plugins"]
+    parse_calls = [
+        node for node in calls if node.func.id == "prepare_server_args"
+    ]
+
+    assert len(load_calls) == 1
+    assert len(parse_calls) == 1
+    assert load_calls[0].lineno < parse_calls[0].lineno
+
+    imports = {
+        alias.name
+        for node in ast.walk(tree)
+        if isinstance(node, ast.ImportFrom)
+        and node.module == "sglang.srt.plugins"
+        for alias in node.names
+    }
+    assert "load_plugins" in imports
