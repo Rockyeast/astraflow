@@ -101,6 +101,13 @@ def _visible_gpu_index(explicit: int | None) -> int | None:
     return None
 
 
+def _server_environment(gpu_index: int | None) -> dict[str, str]:
+    env = os.environ.copy()
+    if gpu_index is not None:
+        env["CUDA_VISIBLE_DEVICES"] = str(gpu_index)
+    return env
+
+
 def _gpu_memory_mib(gpu_index: int | None) -> int | None:
     if gpu_index is None:
         return None
@@ -361,11 +368,13 @@ def run_mode(args: argparse.Namespace, mode: str) -> dict[str, Any]:
     base_url = f"http://{args.host}:{args.port}"
     gpu_index = _visible_gpu_index(args.gpu_index)
     command = _server_command(args, mode)
+    server_env = _server_environment(gpu_index)
     memory_before_mib = _gpu_memory_mib(gpu_index)
 
     with server_log_path.open("w") as server_log:
         process = subprocess.Popen(
             command,
+            env=server_env,
             stdout=server_log,
             stderr=subprocess.STDOUT,
             text=True,
