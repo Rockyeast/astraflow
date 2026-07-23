@@ -8,6 +8,7 @@ from astraflow.core.config.loader import (
     load_raas_config,
     load_trainer_config,
 )
+from astraflow.dataflow.dataset.opd_smoke import get_opd_smoke_dataset
 from astraflow.train_worker.api.cli_args import to_structured_cfg
 from astraflow.train_worker.api.opd_config import OPDConfig
 
@@ -48,7 +49,18 @@ def test_opd_smoke_recipe_uses_local_prompts_and_one_rollout_engine():
         dataflow["agent"]["rollout_dataset"]["dataset_fn"]
         == "astraflow.dataflow.dataset.opd_smoke:get_opd_smoke_dataset"
     )
-    assert dataflow["agent"]["buffer"]["filter_function"] == "keep_all"
+    assert dataflow["agent"]["filter_function"] == "keep_all"
     assert dataflow["agent"]["workflow_spec"]["reward_fn"] == "opd_zero"
     assert raas["models"]["model0"]["sglang"]["model_path"] == "Qwen/Qwen3-1.7B"
-    assert raas["models"]["model0"]["engine"]["data_parallel_size"] == 1
+    assert raas["allocation_mode"]["model0"]["data_parallel_size"] == 1
+
+
+def test_opd_smoke_dataset_is_local_and_deterministic():
+    dataset = get_opd_smoke_dataset()
+
+    assert len(dataset) == 2
+    assert dataset["query_id"] == [
+        "opd_smoke-00000000",
+        "opd_smoke-00000001",
+    ]
+    assert all(row["source"] == "opd_smoke" for row in dataset)
