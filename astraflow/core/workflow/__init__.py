@@ -31,6 +31,7 @@ import astraflow.core.workflow.impl.vision_rlvr
 import astraflow.core.workflow.reward.clevr_count_70k
 import astraflow.core.workflow.reward.geometry3k
 import astraflow.core.workflow.reward.math_verify
+import astraflow.core.workflow.reward.opd_zero
 import astraflow.core.workflow.reward.human_eval_reward
 import astraflow.core.workflow.reward.livecodebench_reward
 import astraflow.core.workflow.reward.textcraft_success  # noqa: F401
