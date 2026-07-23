@@ -1,6 +1,5 @@
 import pytest
 
-from astraflow.core.workflow.reward.opd_zero import opd_zero_reward_fn
 from astraflow.train_worker.api.cli_args import PPOActorConfig
 from astraflow.train_worker.api.opd_config import OPDConfig
 
@@ -38,4 +37,6 @@ def test_opd_config_rejects_invalid_values(field_name, value):
 
 
 def test_opd_zero_reward_has_no_task_signal():
+    from astraflow.core.workflow.reward.opd_zero import opd_zero_reward_fn
+
     assert opd_zero_reward_fn("prompt", "completion") == 0.0
