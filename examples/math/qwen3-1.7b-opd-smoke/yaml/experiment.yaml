@@ -33,7 +33,7 @@ dataflow:
     size: 32
     replay_size: 32
     replay_ratio: 0
-    max_staleness: 2
+    max_staleness: 0
     filter_function: keep_all
 
   rollout_dataset:

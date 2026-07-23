@@ -237,6 +237,7 @@ class AstraFlowClient:
         self,
         version: int,
         run_eval: bool = False,
+        sync_weight_load: bool = False,
     ) -> dict[str, Any] | None:
         """Notify AstraFlow of a new weight version (TCP transfer mode).
 
@@ -251,13 +252,20 @@ class AstraFlowClient:
             New model version.
         run_eval : bool
             Whether to trigger eval.
+        sync_weight_load : bool
+            Whether to wait for RaaS to finish loading the new weights before
+            the service advances its rollout version.
 
         Returns
         -------
         dict[str, Any] | None
             Eval results if ``run_eval=True``, else None.
         """
-        payload: dict[str, Any] = {"version": version, "run_eval": run_eval}
+        payload: dict[str, Any] = {
+            "version": version,
+            "run_eval": run_eval,
+            "sync_weight_load": sync_weight_load,
+        }
         if self.model_id is not None:
             payload["model_id"] = self.model_id
         resp = self._session.post(

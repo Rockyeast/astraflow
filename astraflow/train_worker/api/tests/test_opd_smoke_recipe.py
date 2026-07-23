@@ -34,6 +34,7 @@ def test_opd_smoke_recipe_resolves_student_teacher_and_algorithm():
     assert config.train_batch_size == 2
     assert config.actor.kl_ctl == 1.0
     assert config.actor.discount == 0.0
+    assert config.sync_weight_updates is True
 
 
 def test_opd_smoke_recipe_uses_local_prompts_and_one_rollout_engine():
@@ -50,6 +51,7 @@ def test_opd_smoke_recipe_uses_local_prompts_and_one_rollout_engine():
         == "astraflow.dataflow.dataset.opd_smoke:get_opd_smoke_dataset"
     )
     assert dataflow["agent"]["filter_function"] == "keep_all"
+    assert dataflow["agent"]["max_staleness"] == 0
     assert dataflow["agent"]["workflow_spec"]["reward_fn"] == "opd_zero"
     assert raas["models"]["model0"]["sglang"]["model_path"] == "Qwen/Qwen3-1.7B"
     assert raas["allocation_mode"]["model0"]["data_parallel_size"] == 1

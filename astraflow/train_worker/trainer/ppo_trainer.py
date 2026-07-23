@@ -977,26 +977,45 @@ class AstraFlowPPOTrainer(PPOTrainerBase):
                                 flush=True,
                             )
                         else:
-                            print(
-                                f"[Trainer] [step {global_step}] Notifying AstraFlow "
-                                f"version={version} (async) ...",
-                                flush=True,
+                            sync_weight_updates = getattr(
+                                config, "sync_weight_updates", False
                             )
-                            try:
-                                self.astraflow.notify_version_async(
+                            if sync_weight_updates:
+                                print(
+                                    f"[Trainer] [step {global_step}] Notifying "
+                                    f"AstraFlow version={version} (sync) ...",
+                                    flush=True,
+                                )
+                                self.astraflow.notify_version(
                                     version=version,
+                                    sync_weight_load=True,
                                 )
-                            except Exception as e:
-                                logger.warning(
-                                    "[step %d] notify_version_async failed: %s — "
-                                    "continuing (RaaS will catch up on next bump)",
-                                    global_step, e,
+                                print(
+                                    f"[Trainer] [step {global_step}] AstraFlow "
+                                    f"version={version} loaded",
+                                    flush=True,
                                 )
-                            print(
-                                f"[Trainer] [step {global_step}] AstraFlow version "
-                                f"notification submitted",
-                                flush=True,
-                            )
+                            else:
+                                print(
+                                    f"[Trainer] [step {global_step}] Notifying AstraFlow "
+                                    f"version={version} (async) ...",
+                                    flush=True,
+                                )
+                                try:
+                                    self.astraflow.notify_version_async(
+                                        version=version,
+                                    )
+                                except Exception as e:
+                                    logger.warning(
+                                        "[step %d] notify_version_async failed: %s — "
+                                        "continuing (RaaS will catch up on next bump)",
+                                        global_step, e,
+                                    )
+                                print(
+                                    f"[Trainer] [step {global_step}] AstraFlow version "
+                                    f"notification submitted",
+                                    flush=True,
+                                )
                     _barrier_t0 = time.monotonic()
                     dist.barrier(group=self.actor.cpu_group)
                     if self._is_rank0:

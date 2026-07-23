@@ -7,6 +7,15 @@ from .cli_args import PPOConfig
 class OPDConfig(PPOConfig):
     """On-policy distillation recipe built on AstraFlow's PPO infrastructure."""
 
+    sync_weight_updates: bool = field(
+        default=True,
+        metadata={
+            "help": (
+                "Wait until RaaS has loaded each new student weight version "
+                "before advancing the rollout version."
+            )
+        },
+    )
     opd_kl_coef: float = field(
         default=1.0,
         metadata={"help": "Coefficient for the per-token teacher KL signal."},

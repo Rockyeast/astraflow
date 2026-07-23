@@ -25,6 +25,7 @@ def test_opd_config_enforces_algorithm_invariants():
     assert config.actor.reward_norm is None
     assert config.actor.adv_norm is None
     assert config.critic is None
+    assert config.sync_weight_updates is True
 
 
 @pytest.mark.parametrize(

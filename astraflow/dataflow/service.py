@@ -1023,6 +1023,7 @@ class AstraFlowService:
         version: int,
         run_eval: bool = False,
         model_id: str | None = None,
+        sync_weight_load: bool = False,
     ) -> dict[str, Any] | None:
         """Update internal version for TCP weight transfer mode.
 
@@ -1051,6 +1052,26 @@ class AstraFlowService:
                 f"— weight load deferred (eval, barrier-first) ...",
                 flush=True,
             )
+        elif sync_weight_load:
+            print(
+                f"[{agent_name}:{effective_model_id}] notify_version v={version} "
+                f"— loading weights synchronously ...",
+                flush=True,
+            )
+            weight_transfer_info = self._trigger_raas_weight_load_single(
+                agent_name, effective_model_id, version,
+            )
+            failures = {
+                uid: result
+                for uid, result in weight_transfer_info.items()
+                if not isinstance(result, dict) or result.get("ok") is False
+            }
+            if not weight_transfer_info or failures:
+                raise RuntimeError(
+                    f"Synchronous weight load failed for "
+                    f"{agent_name}:{effective_model_id} v={version}: "
+                    f"{failures or 'no live RaaS instances'}"
+                )
         else:
             import threading
             print(
@@ -1377,6 +1398,7 @@ def notify_version():
     data = loads_object(request.data)
     version = data["version"]
     run_eval = data.get("run_eval", False)
+    sync_weight_load = data.get("sync_weight_load", False)
     model_id = data.get("model_id")
 
     eval_results, weight_transfer_info = service.notify_version(
@@ -1384,6 +1406,7 @@ def notify_version():
         version=version,
         run_eval=run_eval,
         model_id=model_id,
+        sync_weight_load=sync_weight_load,
     )
     resp_data = {"ok": True, "eval_results": eval_results}
     if weight_transfer_info:
