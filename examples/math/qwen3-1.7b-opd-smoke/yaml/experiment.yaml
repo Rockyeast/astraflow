@@ -1,0 +1,92 @@
+# Minimal one-step OPD smoke:
+#   rollout student: Qwen3-1.7B
+#   frozen teacher:  Qwen3-4B
+#   trainer signal:  per-token reverse KL only
+
+experiment:
+  experiment_name: astraflow-opd-smoke
+  trial_name: qwen3-1.7b-student-qwen3-4b-teacher
+  fileroot: ./data-experiments/${experiment.experiment_name}/${experiment.trial_name}
+
+  model_path: "Qwen/Qwen3-1.7B"
+  tokenizer_path: "Qwen/Qwen3-1.7B"
+  seed: 1
+  dtype: bfloat16
+  weight_transfer_mode: tcp
+  weight_transfer_strategies: full
+
+raas:
+  models:
+    model0:
+      backend: sglang
+      gconfig:
+        n_samples: 1
+        temperature: 1.0
+        max_new_tokens: 128
+        min_new_tokens: 1
+
+dataflow:
+  host: "0.0.0.0"
+  port: 8000
+
+  buffer:
+    size: 32
+    replay_size: 32
+    replay_ratio: 0
+    max_staleness: 2
+    filter_function: keep_all
+
+  rollout_dataset:
+    dataset_fn: "astraflow.dataflow.dataset.opd_smoke:get_opd_smoke_dataset"
+    max_length: 256
+
+  workflow_spec:
+    workflow_cls: "rlvr"
+    reward_fn: "opd_zero"
+    enable_thinking: false
+
+trainer_base:
+  total_train_steps: 1
+  train_batch_size: 2
+  n_samples: 1
+  temperature: 1.0
+  opd_kl_coef: 1.0
+  opd_discount: 0.0
+
+  engine:
+    backend: fsdp
+    data_parallel_size: 1
+
+  actor:
+    gradient_checkpointing: true
+    mb_spec:
+      max_tokens_per_mb: 512
+    optimizer:
+      type: adam
+      lr: 1e-6
+      weight_decay: 0.0
+      beta1: 0.9
+      beta2: 0.999
+      eps: 1e-8
+      lr_scheduler_type: constant
+      gradient_clipping: 1.0
+    ppo_n_minibatches: 1
+
+  ref:
+    path: "Qwen/Qwen3-4B"
+    mb_spec:
+      max_tokens_per_mb: 512
+
+  recover:
+    mode: disabled
+
+  evaluator:
+    eval_at_start: false
+
+  stats_logger:
+    wandb:
+      mode: disabled
+
+trainer_model0:
+  model_id: model0
+

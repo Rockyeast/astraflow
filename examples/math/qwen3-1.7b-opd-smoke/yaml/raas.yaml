@@ -1,0 +1,17 @@
+rollout:
+  max_concurrent_rollouts: 2
+  max_concurrent_evals: 1
+  pause_grace_period: 3
+  enable_adaptive_availability: false
+
+engine:
+  model0:
+    backend: sglang
+    data_parallel_size: 1
+
+sglang:
+  context_length: 2048
+  mem_fraction_static: 0.55
+  max_running_requests: 2
+  skip_tokenizer_init: true
+
