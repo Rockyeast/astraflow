@@ -30,7 +30,7 @@ def test_opd_smoke_recipe_resolves_student_teacher_and_algorithm():
     assert config.ref is not None
     assert config.ref.path == "Qwen/Qwen3-4B"
     assert config.ref.optimizer is None
-    assert config.total_train_steps == 1
+    assert config.total_train_steps == 2
     assert config.train_batch_size == 2
     assert config.actor.kl_ctl == 1.0
     assert config.actor.discount == 0.0

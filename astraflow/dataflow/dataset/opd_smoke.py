@@ -7,7 +7,7 @@ def get_opd_smoke_dataset(
     tokenizer=None,
     max_length: int | None = None,
 ) -> Dataset:
-    """Return a tiny local prompt set for one-step OPD integration tests."""
+    """Return a tiny local prompt set for short OPD integration tests."""
     del tokenizer, max_length
 
     dataset = Dataset.from_dict(

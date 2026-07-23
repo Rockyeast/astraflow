@@ -1,4 +1,4 @@
-# Minimal one-step OPD smoke:
+# Minimal two-step OPD smoke:
 #   rollout student: Qwen3-1.7B
 #   frozen teacher:  Qwen3-4B
 #   trainer signal:  per-token reverse KL only
@@ -46,7 +46,7 @@ dataflow:
     enable_thinking: false
 
 trainer_base:
-  total_train_steps: 1
+  total_train_steps: 2
   train_batch_size: 2
   n_samples: 1
   temperature: 1.0
@@ -89,4 +89,3 @@ trainer_base:
 
 trainer_model0:
   model_id: model0
-

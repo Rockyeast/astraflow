@@ -30,7 +30,7 @@ echo "=== AstraFlow OPD smoke ==="
 echo "Rollout student : Qwen/Qwen3-1.7B on GPU ${SERVICE_CUDA_VISIBLE_DEVICES}"
 echo "Frozen teacher  : Qwen/Qwen3-4B"
 echo "Trainer         : GPU ${TRAINER_MODEL0_GPUS}"
-echo "Steps           : 1"
+echo "Steps           : 2"
 echo "Logs            : ${LOG_DIR}"
 echo "============================"
 
@@ -50,6 +50,7 @@ RAAS_PID=""
 TRAINER_PID=""
 
 cleanup() {
+  local status=$?
   trap - EXIT INT TERM
   for pid in "${TRAINER_PID}" "${RAAS_PID}" "${ASTRAFLOW_PID}"; do
     if [[ -n "${pid}" ]]; then
@@ -63,6 +64,7 @@ cleanup() {
     fi
   done
   wait 2>/dev/null || true
+  exit "${status}"
 }
 trap cleanup EXIT INT TERM
 
