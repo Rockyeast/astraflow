@@ -5,6 +5,7 @@ from astraflow.train_worker.engine.opd.functional import (
     align_and_compute_opd_advantages,
     compute_reverse_kl_advantages,
 )
+from astraflow.train_worker.utils.functional import ppo_actor_loss_fn
 
 
 def test_alignment_moves_rollout_values_but_not_teacher_values():
@@ -90,6 +91,33 @@ def test_discount_propagates_future_teacher_signal():
         advantages,
         torch.tensor([[-1.25, -2.5, -1.0]]),
     )
+
+
+def test_ppo_update_moves_student_logprobs_toward_teacher_signal():
+    old_logprobs = torch.tensor([[-2.0, -2.0]])
+    teacher_logprobs = torch.tensor([[-1.0, -3.0]])
+    loss_mask = torch.ones(1, 2, dtype=torch.bool)
+    advantages, _, _ = compute_reverse_kl_advantages(
+        old_logprobs,
+        teacher_logprobs,
+        loss_mask,
+        coefficient=1.0,
+    )
+    new_logprobs = old_logprobs.clone().requires_grad_(True)
+
+    loss, _ = ppo_actor_loss_fn(
+        logprobs=new_logprobs,
+        old_logprobs=old_logprobs,
+        advantages=advantages,
+        eps_clip=100.0,
+        loss_mask=loss_mask,
+        eps_clip_higher=100.0,
+    )
+    loss.backward()
+
+    assert new_logprobs.grad is not None
+    assert new_logprobs.grad[0, 0] < 0
+    assert new_logprobs.grad[0, 1] > 0
 
 
 @pytest.mark.parametrize(
